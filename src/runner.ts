@@ -106,7 +106,7 @@ export async function runTask(
   role: Role,
   config: Config,
   memory: MemoryStore,
-  workspace?: { cwd: string; branch?: string },
+  workspace?: { cwd: string; branch?: string; extraDirs?: string[] },
 ): Promise<AgentOutcome> {
   const prompt = buildPrompt(task, role, memory.readIndex(), workspace?.branch);
   const outcome: AgentOutcome = {
@@ -126,6 +126,16 @@ export async function runTask(
       options: {
         model: role.model,
         cwd: workspace?.cwd ?? task.cwd ?? config.workspace,
+        ...(workspace?.extraDirs ? { additionalDirectories: workspace.extraDirs } : {}),
+        // Headless sessions have no interactive approver, so un-allowed Bash
+        // calls would be silently denied. OS-sandboxed commands are auto-approved
+        // instead: full shell autonomy inside cwd + additionalDirectories, and
+        // anything the sandbox can't contain still gets denied.
+        sandbox: {
+          enabled: true,
+          autoAllowBashIfSandboxed: true,
+          failIfUnavailable: false,
+        },
         maxTurns: role.maxTurns,
         permissionMode: role.permissionMode,
         ...(role.allowedTools ? { allowedTools: role.allowedTools } : {}),

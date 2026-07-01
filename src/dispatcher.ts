@@ -10,13 +10,14 @@ import {
   completeTask,
   failTask,
   findDuplicate,
+  getTask,
   recoverOrphans,
   releaseTask,
   type Task,
 } from "./queue";
 import { loadRoles, modelTier, type Role } from "./roles";
 import { runTask } from "./runner";
-import { prepareWorkspace } from "./workspace";
+import { branchFromResult, prepareWorkspace } from "./workspace";
 
 export class Dispatcher {
   private budget: BudgetManager;
@@ -178,6 +179,30 @@ export class Dispatcher {
     }
   }
 
+  /**
+   * If this task continues work that lives on an unmerged task branch, base its
+   * worktree there: check its dependencies first, then the task that created it
+   * and that creator's dependencies (covers reviewer bounce-backs, which carry
+   * no dependency but fix code from the branch the reviewer was reviewing).
+   */
+  private dependencyBranch(task: Task, depth = 0): string | undefined {
+    if (depth > 3) return undefined;
+    const deps: number[] = JSON.parse(task.depends_on);
+    for (const id of deps.reverse()) {
+      const dep = getTask(this.db, id);
+      const branch = dep && branchFromResult(dep.result);
+      if (branch) return branch;
+    }
+    const creatorId = task.created_by.match(/^task:(\d+)$/)?.[1];
+    if (creatorId) {
+      const creator = getTask(this.db, Number(creatorId));
+      if (creator) {
+        return branchFromResult(creator.result) ?? this.dependencyBranch(creator, depth + 1);
+      }
+    }
+    return undefined;
+  }
+
   private weeklyDegraded(): boolean {
     const threshold = this.config.degradeAtWeeklyUtilization;
     const sevenDay = this.usage?.sevenDay;
@@ -191,7 +216,7 @@ export class Dispatcher {
       this.log(`task ${task.id} failed: unknown role '${task.role}'`);
       return;
     }
-    const workspace = prepareWorkspace(task, role, this.config);
+    const workspace = prepareWorkspace(task, role, this.config, this.dependencyBranch(task));
     if (workspace.note) this.log(`task ${task.id}: ${workspace.note}`);
     this.log(
       `task ${task.id} [${task.role}] "${task.title}" started${workspace.branch ? ` on ${workspace.branch}` : ""}${degraded ? " (degraded mode)" : ""}`,

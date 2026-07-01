@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DEFAULTS } from "../src/config";
 import type { Task } from "../src/queue";
 import { parseRole } from "../src/roles";
-import { branchName, prepareWorkspace, slugify } from "../src/workspace";
+import { branchFromResult, branchName, prepareWorkspace, slugify } from "../src/workspace";
 
 function fakeTask(id: number, title: string, cwd: string): Task {
   return { id, title, cwd } as Task;
@@ -59,6 +59,7 @@ describe("prepareWorkspace", () => {
     const task = fakeTask(3, "Add feature", repo);
     const ws = prepareWorkspace(task, worktreeRole, DEFAULTS);
     expect(ws.branch).toBe("task/3-add-feature");
+    expect(ws.extraDirs).toEqual([repo]); // sandbox access for git metadata writes
     expect(ws.cwd).not.toBe(repo);
     expect(existsSync(join(ws.cwd, "a.txt"))).toBe(true);
 
@@ -73,6 +74,40 @@ describe("prepareWorkspace", () => {
     expect(branches).toContain("task/3-add-feature"); // branch survives
     // main working tree untouched
     expect(existsSync(join(repo, "b.txt"))).toBe(false);
+  });
+
+  test("baseBranch bases the new worktree on a dependency's branch", () => {
+    const repo = makeGitRepo();
+    const dep = prepareWorkspace(fakeTask(5, "Original work", repo), worktreeRole, DEFAULTS);
+    writeFileSync(join(dep.cwd, "feature.txt"), "v1");
+    Bun.spawnSync(["git", "add", "."], { cwd: dep.cwd });
+    Bun.spawnSync(["git", "commit", "-m", "feature"], { cwd: dep.cwd });
+    dep.cleanup();
+
+    const fix = prepareWorkspace(
+      fakeTask(6, "Fix original work", repo),
+      worktreeRole,
+      DEFAULTS,
+      dep.branch,
+    );
+    expect(existsSync(join(fix.cwd, "feature.txt"))).toBe(true); // sees unmerged work
+    fix.cleanup();
+
+    // Unknown base branch falls back to HEAD instead of failing
+    const fallback = prepareWorkspace(
+      fakeTask(7, "Other work", repo),
+      worktreeRole,
+      DEFAULTS,
+      "task/999-nonexistent",
+    );
+    expect(fallback.branch).toBe("task/7-other-work");
+    fallback.cleanup();
+  });
+
+  test("branchFromResult extracts the branch tag", () => {
+    expect(branchFromResult("Did the thing [branch: task/2-add-stuff]")).toBe("task/2-add-stuff");
+    expect(branchFromResult("no tag here")).toBeNull();
+    expect(branchFromResult(null)).toBeNull();
   });
 
   test("retry after crash resets a stale worktree instead of failing", () => {
