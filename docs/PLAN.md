@@ -1,4 +1,4 @@
-# AutoAgents — Autonomous Agent Organization Runtime
+# SkeletonCrew — Autonomous Agent Organization Runtime
 
 A long-running orchestrator that spins up a virtual "organization" of Claude Code
 agents to manage a project end-to-end (planning, building, testing, marketing),
@@ -111,13 +111,13 @@ Hard guardrails (enforced by the runtime, not by prompts):
 An `approvals` table + notification (push/CLI). Required for: spending money
 (ads, infra), anything sent to external services (emails, posts, campaigns),
 production deploys, and edits to protected runtime paths. Everything else is
-autonomous. `autoagents approve <id>` / a tiny web dashboard to review.
+autonomous. `skeletoncrew approve <id>` / a tiny web dashboard to review.
 
 ## 7. Interfaces
 
-- `autoagents status` — queue, budgets, running sessions, recent failures.
-- `autoagents goal "…"` — hand the Director a new objective.
-- `autoagents log <task-id>` — full transcript of any agent session.
+- `skeletoncrew status` — queue, budgets, running sessions, recent failures.
+- `skeletoncrew goal "…"` — hand the Director a new objective.
+- `skeletoncrew log <task-id>` — full transcript of any agent session.
 - Small read-only web dashboard later (itself a task for the org to build).
 
 ## 8. Build phases

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest! AutoAgents is early — the kernel (queue, dispatcher, budget,
+Thanks for your interest! SkeletonCrew is early — the kernel (queue, dispatcher, budget,
 memory) is in place and the roadmap in the README lists what's next.
 
 ## Setup

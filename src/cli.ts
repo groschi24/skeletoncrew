@@ -27,10 +27,10 @@ function positional(): string[] {
 
 switch (command) {
   case "init": {
-    const configPath = join(root, "autoagents.json");
+    const configPath = join(root, "skeletoncrew.json");
     if (!existsSync(configPath)) {
       writeFileSync(configPath, JSON.stringify(DEFAULTS, null, 2) + "\n");
-      console.log("wrote autoagents.json");
+      console.log("wrote skeletoncrew.json");
     }
     const rolesDir = join(root, "org", "roles");
     mkdirSync(rolesDir, { recursive: true });
@@ -44,15 +44,15 @@ switch (command) {
     mkdirSync(join(root, "memory", "entries"), { recursive: true });
     mkdirSync(loadConfig(root).workspace, { recursive: true });
     openDb(loadConfig(root).dbPath);
-    console.log("initialized: autoagents.json, org/roles/, memory/, workspace/, database");
-    console.log("next: add role files to org/roles/, then `autoagents goal \"…\"` and `autoagents daemon`");
+    console.log("initialized: skeletoncrew.json, org/roles/, memory/, workspace/, database");
+    console.log("next: add role files to org/roles/, then `skeletoncrew goal \"…\"` and `skeletoncrew daemon`");
     break;
   }
 
   case "add": {
     const [role, title] = positional();
     if (!role || !title) {
-      console.error('usage: autoagents add <role> "<title>" [--spec "…"] [--priority N] [--cwd path]');
+      console.error('usage: skeletoncrew add <role> "<title>" [--spec "…"] [--priority N] [--cwd path]');
       process.exit(1);
     }
     const db = openDb(loadConfig(root).dbPath);
@@ -70,7 +70,7 @@ switch (command) {
   case "goal": {
     const [text] = positional();
     if (!text) {
-      console.error('usage: autoagents goal "<objective>"');
+      console.error('usage: skeletoncrew goal "<objective>"');
       process.exit(1);
     }
     const db = openDb(loadConfig(root).dbPath);
@@ -165,14 +165,14 @@ switch (command) {
   }
 
   default:
-    console.log(`autoagents — token-aware agent organization runtime
+    console.log(`skeletoncrew — token-aware agent organization runtime
 
 usage:
-  autoagents init                     scaffold config, roles dir, memory, database
-  autoagents goal "<objective>"       hand the director a new objective
-  autoagents add <role> "<title>"     queue a task directly (--spec, --priority, --cwd)
-  autoagents daemon                   run the 24/7 dispatcher loop
-  autoagents status                   queue, budget, pause state
-  autoagents log <id>                 task detail + session transcript pointer
-  autoagents resume                   clear a budget pause manually`);
+  skeletoncrew init                     scaffold config, roles dir, memory, database
+  skeletoncrew goal "<objective>"       hand the director a new objective
+  skeletoncrew add <role> "<title>"     queue a task directly (--spec, --priority, --cwd)
+  skeletoncrew daemon                   run the 24/7 dispatcher loop
+  skeletoncrew status                   queue, budget, pause state
+  skeletoncrew log <id>                 task detail + session transcript pointer
+  skeletoncrew resume                   clear a budget pause manually`);
 }

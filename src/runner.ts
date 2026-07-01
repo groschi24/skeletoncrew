@@ -52,7 +52,7 @@ the engineer task it reviews. followUpTasks and memoryNotes may be empty arrays.
 non-obvious facts a future agent would need — never restate what the code already shows.`;
 
 export function buildPrompt(task: Task, role: Role, memoryIndex: string): string {
-  return `You are the ${role.name} agent in the AutoAgents organization.
+  return `You are the ${role.name} agent in the SkeletonCrew organization.
 
 ## Your task (id ${task.id}, attempt ${task.attempts}/${task.max_attempts})
 **${task.title}**

@@ -33,7 +33,7 @@ export interface Config {
 
 export const DEFAULTS: Config = {
   workspace: "./workspace",
-  dbPath: "./autoagents.db",
+  dbPath: "./skeletoncrew.db",
   concurrency: 2,
   pollIntervalSec: 15,
   billingMode: "subscription",
@@ -54,7 +54,7 @@ export const DEFAULTS: Config = {
 };
 
 export function loadConfig(root: string = process.cwd()): Config {
-  const path = join(root, "autoagents.json");
+  const path = join(root, "skeletoncrew.json");
   if (!existsSync(path)) return { ...DEFAULTS };
   const user = JSON.parse(readFileSync(path, "utf-8"));
   return { ...DEFAULTS, ...user, models: { ...DEFAULTS.models, ...user.models } };

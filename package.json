@@ -1,11 +1,11 @@
 {
-  "name": "autoagents",
+  "name": "skeletoncrew",
   "version": "0.1.0",
   "description": "Token-aware 24/7 agent organization runtime built on Claude Code",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "autoagents": "src/cli.ts"
+    "skeletoncrew": "src/cli.ts"
   },
   "scripts": {
     "start": "bun src/cli.ts daemon",
