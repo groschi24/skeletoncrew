@@ -63,6 +63,15 @@ describe("queue", () => {
     expect(again.attempts).toBe(1);
   });
 
+  test("excludeRoles defers those roles except at priority 0", () => {
+    addTask(db, { role: "director", title: "plan things", priority: 1 });
+    const cheap = addTask(db, { role: "triage", title: "sort inbox", priority: 2 });
+    expect(claimNext(db, { excludeRoles: ["director"] })?.id).toBe(cheap);
+    expect(claimNext(db, { excludeRoles: ["director"] })).toBeNull();
+    const critical = addTask(db, { role: "director", title: "fix the fire", priority: 0 });
+    expect(claimNext(db, { excludeRoles: ["director"] })?.id).toBe(critical);
+  });
+
   test("findDuplicate matches open tasks by role and normalized title", () => {
     const id = addTask(db, { role: "reviewer", title: "Review todo.html implementation" });
     expect(findDuplicate(db, "reviewer", "review: todo.html  implementation!")?.id).toBe(id);

@@ -62,17 +62,25 @@ export function addTask(db: Database, t: NewTask): number {
  * all dependencies done, best priority first. In degraded mode only priority-0
  * tasks are eligible.
  */
-export function claimNext(db: Database, opts: { degraded?: boolean } = {}): Task | null {
+export function claimNext(
+  db: Database,
+  opts: { degraded?: boolean; excludeRoles?: string[] } = {},
+): Task | null {
   const now = Date.now();
   const maxPriority = opts.degraded ? 0 : 999;
   const claim = db.transaction((): Task | null => {
-    const candidates = db
-      .query(
-        `SELECT * FROM tasks
-         WHERE status = 'pending' AND not_before <= ? AND priority <= ?
-         ORDER BY priority ASC, created_at ASC LIMIT 20`,
-      )
-      .all(now, maxPriority) as Task[];
+    const candidates = (
+      db
+        .query(
+          `SELECT * FROM tasks
+           WHERE status = 'pending' AND not_before <= ? AND priority <= ?
+           ORDER BY priority ASC, created_at ASC LIMIT 50`,
+        )
+        .all(now, maxPriority) as Task[]
+    ).filter(
+      // Excluded (expensive) roles still dispatch at priority 0 — keep-alive work trumps thrift.
+      (t) => t.priority === 0 || !opts.excludeRoles?.includes(t.role),
+    );
     for (const task of candidates) {
       const deps: number[] = JSON.parse(task.depends_on);
       const unmet = deps.filter((id) => {

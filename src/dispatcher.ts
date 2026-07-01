@@ -14,7 +14,7 @@ import {
   releaseTask,
   type Task,
 } from "./queue";
-import { loadRoles, type Role } from "./roles";
+import { loadRoles, modelTier, type Role } from "./roles";
 import { runTask } from "./runner";
 import { prepareWorkspace } from "./workspace";
 
@@ -26,6 +26,8 @@ export class Dispatcher {
   private stopping = false;
   private wake: (() => void) | null = null;
   private usage: UsageSnapshot | null = null;
+  private deferringExpensive = false;
+  private lastHousekeeping = 0;
 
   constructor(
     private db: Database,
@@ -90,8 +92,9 @@ export class Dispatcher {
         continue;
       }
 
+      this.housekeeping();
       const degraded = this.budget.isDegraded() || this.weeklyDegraded();
-      const task = claimNext(this.db, { degraded });
+      const task = claimNext(this.db, { degraded, excludeRoles: this.expensiveRolesToDefer() });
       if (!task) {
         await this.idle(this.config.pollIntervalSec * 1000);
         continue;
@@ -129,6 +132,50 @@ export class Dispatcher {
       `live 5h utilization at ${fiveHour.utilization.toFixed(0)}% (≥${threshold}%) — pausing until ${new Date(until).toISOString()} to protect the account`,
     );
     return true;
+  }
+
+  /**
+   * Window-aware scheduling: burn expensive-model budget early in the window,
+   * leave the tail for cheap roles. Priority-0 tasks bypass this in claimNext.
+   */
+  private expensiveRolesToDefer(): string[] {
+    const threshold = this.config.deferExpensiveAtUtilization;
+    const utilization = this.usage?.fiveHour?.utilization;
+    const defer =
+      this.config.billingMode === "subscription" &&
+      Boolean(threshold && utilization !== undefined && utilization >= threshold);
+    if (defer !== this.deferringExpensive) {
+      this.deferringExpensive = defer;
+      this.log(
+        defer
+          ? `5h window at ${utilization?.toFixed(0)}% — deferring expensive-model roles until reset`
+          : "window reset — expensive-model roles eligible again",
+      );
+    }
+    if (!defer) return [];
+    return [...this.roles.values()]
+      .filter((r) => modelTier(r.model) === "expensive")
+      .map((r) => r.name);
+  }
+
+  /** Hourly checks that keep the org healthy; queued through the normal task system. */
+  private housekeeping(): void {
+    if (Date.now() - this.lastHousekeeping < 60 * 60 * 1000) return;
+    this.lastHousekeeping = Date.now();
+    if (
+      this.roles.has("librarian") &&
+      this.memory.needsCompaction() &&
+      !findDuplicate(this.db, "librarian", "Compact memory index")
+    ) {
+      const id = addTask(this.db, {
+        role: "librarian",
+        title: "Compact memory index",
+        spec: "memory/INDEX.md is near its size cap. Compact it per your role instructions.",
+        cwd: this.root,
+        priority: 2,
+      });
+      this.log(`memory index near cap — queued compaction task ${id}`);
+    }
   }
 
   private weeklyDegraded(): boolean {

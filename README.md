@@ -104,9 +104,13 @@ See [docs/PLAN.md](docs/PLAN.md) for the full architecture and phase plan, and
 - [x] Phase 1a — git-worktree isolation (roles with `isolation: worktree` get a fresh
       checkout on a `task/<id>-<slug>` branch; commits survive, trees never collide)
 - [x] Phase 2a — morning briefing (`skeletoncrew briefing`, zero-token, from the ledger)
-- [ ] Phase 1b — memory compaction agent
-- [ ] Phase 2b — launchd/systemd templates, window-aware scheduling
-      (spend big-model budget right after window reset, cheap tasks near the end)
+- [x] Phase 1b — memory compaction: a Haiku-tier librarian role is queued
+      automatically when `memory/INDEX.md` nears its cap
+- [x] Phase 2b — `skeletoncrew service` (launchd, 24/7 with KeepAlive) and
+      window-aware scheduling: expensive-model roles defer past
+      `deferExpensiveAtUtilization` (default 70%) of the live 5h window, so
+      Opus-tier planning burns budget early and Haiku work fills the tail
+- [ ] systemd template (Linux)
 - [ ] Phase 3 — self-optimization via empirical selection over org-config variants
       (Darwin-Gödel-style archive, not in-place self-patching)
 - [ ] Phase 4 — approval queue for money/outward-facing actions, ops + marketing roles

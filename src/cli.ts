@@ -179,6 +179,42 @@ to override a default (matched by role name) or to add a new role.
     break;
   }
 
+  case "service": {
+    if (process.platform !== "darwin") {
+      console.error("service generation currently supports macOS (launchd) only");
+      process.exit(1);
+    }
+    const { homedir } = await import("node:os");
+    const { basename } = await import("node:path");
+    const label = `com.skeletoncrew.${basename(root).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const plistPath = join(homedir(), "Library", "LaunchAgents", `${label}.plist`);
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${process.execPath}</string>
+    <string>${import.meta.path}</string>
+    <string>daemon</string>
+  </array>
+  <key>WorkingDirectory</key><string>${root}</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${join(root, "daemon.log")}</string>
+  <key>StandardErrorPath</key><string>${join(root, "daemon.log")}</string>
+</dict>
+</plist>
+`;
+    writeFileSync(plistPath, plist);
+    console.log(`wrote ${plistPath}`);
+    console.log(`\nstart 24/7:  launchctl load ${plistPath}`);
+    console.log(`stop:        launchctl unload ${plistPath}`);
+    console.log(`logs:        tail -f ${join(root, "daemon.log")}`);
+    break;
+  }
+
   case "daemon": {
     const config = loadConfig(root);
     const db = openDb(config.dbPath);
@@ -206,6 +242,7 @@ usage:
   skeletoncrew goal "<objective>"       hand the director a new objective
   skeletoncrew add <role> "<title>"     queue a task directly (--spec, --priority, --cwd)
   skeletoncrew daemon                   run the 24/7 dispatcher loop
+  skeletoncrew service                  write a launchd plist so the daemon runs 24/7 (macOS)
   skeletoncrew status                   queue, budget, pause state
   skeletoncrew roles                    active roles and whether default or project override
   skeletoncrew briefing [--since h]     what the crew did since the last briefing (saved to briefings/)

@@ -51,6 +51,13 @@ export function parseRole(source: string, fallbackName: string, config: Config):
   };
 }
 
+/** Rough cost class of a model, for window-aware scheduling. */
+export function modelTier(model: string): "cheap" | "mid" | "expensive" {
+  if (/haiku/i.test(model)) return "cheap";
+  if (/opus|fable|mythos/i.test(model)) return "expensive";
+  return "mid";
+}
+
 /** The role definitions shipped with the SkeletonCrew package itself. */
 export function packageRolesDir(): string {
   return join(dirname(import.meta.dir), "org", "roles");

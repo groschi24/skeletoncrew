@@ -36,4 +36,13 @@ export class MemoryStore {
   entriesDir(): string {
     return join(this.dir, "entries");
   }
+
+  indexSize(): number {
+    return readFileSync(join(this.dir, "INDEX.md"), "utf-8").length;
+  }
+
+  /** Compaction should run before truncation ever kicks in. */
+  needsCompaction(): boolean {
+    return this.indexSize() > INDEX_CHAR_CAP * 0.8;
+  }
 }

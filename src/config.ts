@@ -22,6 +22,8 @@ export interface Config {
   softWindowTokens: number;
   /** Soft token ceiling over a rolling 7 days; 0 disables. */
   softWeeklyTokens: number;
+  /** Defer expensive-model roles when live 5h utilization reaches this percent (0 disables). */
+  deferExpensiveAtUtilization: number;
   /** Pause until window reset when live 5h utilization reaches this percent (subscription mode; 0 disables). */
   pauseAtUtilization: number;
   /** Enter degraded mode (priority-0 only) when live weekly utilization reaches this percent (0 disables). */
@@ -42,6 +44,7 @@ export const DEFAULTS: Config = {
   windowHours: 5,
   softWindowTokens: 0,
   softWeeklyTokens: 0,
+  deferExpensiveAtUtilization: 70,
   pauseAtUtilization: 90,
   degradeAtWeeklyUtilization: 90,
   models: {
@@ -49,6 +52,7 @@ export const DEFAULTS: Config = {
     engineer: "claude-sonnet-5",
     reviewer: "claude-sonnet-5",
     triage: "claude-haiku-4-5-20251001",
+    librarian: "claude-haiku-4-5-20251001",
   },
   defaultModel: "claude-sonnet-5",
 };

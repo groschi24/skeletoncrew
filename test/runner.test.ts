@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULTS } from "../src/config";
 import type { Task } from "../src/queue";
-import { loadRoles, packageRolesDir, parseRole } from "../src/roles";
+import { loadRoles, modelTier, packageRolesDir, parseRole } from "../src/roles";
 import { buildPrompt, parseAgentResult } from "../src/runner";
 
 describe("parseAgentResult", () => {
@@ -88,6 +88,19 @@ describe("roles", () => {
     expect(roles.get("engineer")?.maxTurns).toBe(5);
     expect(roles.get("marketer")?.source).toBe("project"); // added
     expect(roles.get("engineer")?.systemPrompt).toBe("Custom engineer.");
+  });
+
+  test("modelTier classifies by model family", () => {
+    expect(modelTier("claude-haiku-4-5-20251001")).toBe("cheap");
+    expect(modelTier("claude-sonnet-5")).toBe("mid");
+    expect(modelTier("claude-opus-4-8")).toBe("expensive");
+    expect(modelTier("claude-fable-5")).toBe("expensive");
+  });
+
+  test("role frontmatter parses isolation", () => {
+    const role = parseRole("---\nname: engineer\nisolation: worktree\n---\np", "engineer", DEFAULTS);
+    expect(role.isolation).toBe("worktree");
+    expect(parseRole("---\nname: x\n---\np", "x", DEFAULTS).isolation).toBeUndefined();
   });
 
   test("loadRoles does not double-load when project root IS the package", () => {
