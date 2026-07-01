@@ -112,6 +112,10 @@ export class BudgetManager {
     return until;
   }
 
+  pauseUntil(epochMs: number): void {
+    setState(this.db, PAUSED_UNTIL_KEY, String(epochMs));
+  }
+
   /** Call after any successful session: proves the limit is gone, resets strike escalation. */
   noteSuccess(): void {
     setState(this.db, LIMIT_STRIKES_KEY, "0");

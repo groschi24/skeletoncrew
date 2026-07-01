@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { BudgetManager, isLimitError } from "./budget";
 import type { Config } from "./config";
+import { fetchUsage, formatUsage, type UsageSnapshot } from "./limits";
 import { MemoryStore } from "./memory";
 import {
   addTask,
@@ -23,6 +24,7 @@ export class Dispatcher {
   private inFlight = new Set<Promise<void>>();
   private stopping = false;
   private wake: (() => void) | null = null;
+  private usage: UsageSnapshot | null = null;
 
   constructor(
     private db: Database,
@@ -59,6 +61,8 @@ export class Dispatcher {
     this.log(
       `dispatcher up: roles=[${[...this.roles.keys()].join(", ")}] concurrency=${this.config.concurrency} billing=${this.config.billingMode}`,
     );
+    await this.refreshUsage();
+    if (this.usage) for (const line of formatUsage(this.usage)) this.log(line);
 
     while (!this.stopping) {
       if (this.budget.isPaused()) {
@@ -77,13 +81,15 @@ export class Dispatcher {
         this.log(`${softCap.reason} — paused until ${new Date(softCap.until).toISOString()}`);
         continue;
       }
+      await this.refreshUsage();
+      if (await this.enforceLiveUtilization()) continue;
 
       if (this.inFlight.size >= this.config.concurrency) {
         await Promise.race(this.inFlight);
         continue;
       }
 
-      const degraded = this.budget.isDegraded();
+      const degraded = this.budget.isDegraded() || this.weeklyDegraded();
       const task = claimNext(this.db, { degraded });
       if (!task) {
         await this.idle(this.config.pollIntervalSec * 1000);
@@ -98,6 +104,36 @@ export class Dispatcher {
     }
     await Promise.allSettled([...this.inFlight]);
     this.log("dispatcher stopped");
+  }
+
+  /** Refresh the live usage snapshot at most every 5 minutes; best-effort. */
+  private async refreshUsage(): Promise<void> {
+    if (this.config.billingMode !== "subscription") return;
+    if (this.usage && Date.now() - this.usage.fetchedAt < 5 * 60 * 1000) return;
+    const fresh = await fetchUsage();
+    if (fresh) this.usage = fresh;
+  }
+
+  /** Pause proactively when the live 5h window is nearly exhausted. Returns true if paused. */
+  private async enforceLiveUtilization(): Promise<boolean> {
+    const threshold = this.config.pauseAtUtilization;
+    const fiveHour = this.usage?.fiveHour;
+    if (!threshold || !fiveHour || fiveHour.utilization < threshold) return false;
+    const resetMs = fiveHour.resetsAt ? Date.parse(fiveHour.resetsAt) : NaN;
+    const until = Number.isNaN(resetMs) || resetMs <= Date.now()
+      ? Date.now() + 15 * 60 * 1000
+      : resetMs + 60 * 1000;
+    this.budget.pauseUntil(until);
+    this.log(
+      `live 5h utilization at ${fiveHour.utilization.toFixed(0)}% (≥${threshold}%) — pausing until ${new Date(until).toISOString()} to protect the account`,
+    );
+    return true;
+  }
+
+  private weeklyDegraded(): boolean {
+    const threshold = this.config.degradeAtWeeklyUtilization;
+    const sevenDay = this.usage?.sevenDay;
+    return Boolean(threshold && sevenDay && sevenDay.utilization >= threshold);
   }
 
   private async execute(task: Task, degraded: boolean): Promise<void> {

@@ -5,6 +5,7 @@ import { BudgetManager } from "./budget";
 import { DEFAULTS, loadConfig } from "./config";
 import { openDb } from "./db";
 import { Dispatcher } from "./dispatcher";
+import { fetchUsage, formatUsage } from "./limits";
 import { addTask, getTask, listTasks } from "./queue";
 
 const root = process.cwd();
@@ -87,6 +88,11 @@ switch (command) {
     const config = loadConfig(root);
     const db = openDb(config.dbPath);
     const budget = new BudgetManager(db, config);
+    if (config.billingMode === "subscription") {
+      const usage = await fetchUsage();
+      if (usage) for (const line of formatUsage(usage)) console.log(line);
+      else console.log("live usage: unavailable (no Claude Code OAuth credentials found)");
+    }
     const spent = budget.spentToday();
     const counts = new Map<string, number>();
     for (const t of listTasks(db, { limit: 10000 })) {

@@ -22,6 +22,10 @@ export interface Config {
   softWindowTokens: number;
   /** Soft token ceiling over a rolling 7 days; 0 disables. */
   softWeeklyTokens: number;
+  /** Pause until window reset when live 5h utilization reaches this percent (subscription mode; 0 disables). */
+  pauseAtUtilization: number;
+  /** Enter degraded mode (priority-0 only) when live weekly utilization reaches this percent (0 disables). */
+  degradeAtWeeklyUtilization: number;
   /** Default model per role name; roles can override in their frontmatter. */
   models: Record<string, string>;
   defaultModel: string;
@@ -38,6 +42,8 @@ export const DEFAULTS: Config = {
   windowHours: 5,
   softWindowTokens: 0,
   softWeeklyTokens: 0,
+  pauseAtUtilization: 90,
+  degradeAtWeeklyUtilization: 90,
   models: {
     director: "claude-opus-4-8",
     engineer: "claude-sonnet-5",
