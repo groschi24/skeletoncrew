@@ -6,6 +6,7 @@ import {
   claimNext,
   completeTask,
   failTask,
+  findDuplicate,
   getTask,
   recoverOrphans,
   releaseTask,
@@ -60,6 +61,14 @@ describe("queue", () => {
     const again = claimNext(db)!;
     expect(again.id).toBe(id);
     expect(again.attempts).toBe(1);
+  });
+
+  test("findDuplicate matches open tasks by role and normalized title", () => {
+    const id = addTask(db, { role: "reviewer", title: "Review todo.html implementation" });
+    expect(findDuplicate(db, "reviewer", "review: todo.html  implementation!")?.id).toBe(id);
+    expect(findDuplicate(db, "engineer", "Review todo.html implementation")).toBeNull();
+    completeTask(db, id, "done");
+    expect(findDuplicate(db, "reviewer", "Review todo.html implementation")).toBeNull();
   });
 
   test("recoverOrphans resets crashed running tasks", () => {

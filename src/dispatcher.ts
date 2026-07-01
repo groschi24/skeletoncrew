@@ -8,6 +8,7 @@ import {
   claimNext,
   completeTask,
   failTask,
+  findDuplicate,
   recoverOrphans,
   releaseTask,
   type Task,
@@ -140,6 +141,14 @@ export class Dispatcher {
         if (!this.roles.has(follow.role)) {
           this.log(`task ${task.id} proposed follow-up with unknown role '${follow.role}' — skipped`);
           createdIds.push(null);
+          return;
+        }
+        const dupe = findDuplicate(this.db, follow.role, follow.title);
+        if (dupe) {
+          this.log(
+            `task ${task.id} proposed follow-up duplicating open task #${dupe.id} ("${dupe.title}") — skipped`,
+          );
+          createdIds.push(dupe.id);
           return;
         }
         // Map dependsOnIndex (positions in this batch) to the real ids created above.

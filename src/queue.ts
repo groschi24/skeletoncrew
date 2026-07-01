@@ -142,6 +142,19 @@ export function listTasks(db: Database, opts: { status?: string; limit?: number 
     .all(opts.limit ?? 100) as Task[];
 }
 
+/** Find an open (pending/running) task with the same role and near-identical title. */
+export function findDuplicate(db: Database, role: string, title: string): Task | null {
+  const normalized = title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const open = db
+    .query("SELECT * FROM tasks WHERE status IN ('pending', 'running') AND role = ?")
+    .all(role) as Task[];
+  return (
+    open.find(
+      (t) => t.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === normalized,
+    ) ?? null
+  );
+}
+
 /** Recovery on daemon start: any task stuck in 'running' from a crashed run goes back to pending. */
 export function recoverOrphans(db: Database): number {
   const res = db
