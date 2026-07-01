@@ -41,7 +41,7 @@ skeletoncrew status        # queue, spend, pause state
 Requires [Bun](https://bun.sh) and [Claude Code](https://claude.com/claude-code) (logged in).
 
 ```bash
-git clone https://github.com/YOURUSER/skeletoncrew && cd skeletoncrew
+git clone https://github.com/groschi24/skeletoncrew && cd skeletoncrew
 bun install
 
 # in the project you want the org to work on:
