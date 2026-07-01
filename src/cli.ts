@@ -135,8 +135,17 @@ switch (command) {
     const config = loadConfig(root);
     const db = openDb(config.dbPath);
     const dispatcher = new Dispatcher(db, config, root);
-    process.on("SIGINT", () => dispatcher.stop());
-    process.on("SIGTERM", () => dispatcher.stop());
+    let signals = 0;
+    const shutdown = () => {
+      signals++;
+      if (signals >= 2) {
+        console.log("\nforce quit — interrupted tasks will be recovered on next start");
+        process.exit(130);
+      }
+      dispatcher.stop();
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
     await dispatcher.run();
     break;
   }

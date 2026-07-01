@@ -15,14 +15,13 @@ import {
 import { loadRoles, type Role } from "./roles";
 import { runTask } from "./runner";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export class Dispatcher {
   private budget: BudgetManager;
   private memory: MemoryStore;
   private roles: Map<string, Role>;
   private inFlight = new Set<Promise<void>>();
   private stopping = false;
+  private wake: (() => void) | null = null;
 
   constructor(
     private db: Database,
@@ -38,6 +37,19 @@ export class Dispatcher {
 
   stop(): void {
     this.stopping = true;
+    this.wake?.();
+  }
+
+  /** Sleep that returns immediately when stop() is called. */
+  private idle(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(done, ms);
+      this.wake = done;
+      function done() {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
   }
 
   async run(): Promise<void> {
@@ -51,7 +63,7 @@ export class Dispatcher {
       if (this.budget.isPaused()) {
         const until = this.budget.pausedUntil();
         this.log(`budget paused until ${new Date(until).toISOString()} — sleeping`);
-        await sleep(Math.min(until - Date.now() + 1000, 10 * 60 * 1000));
+        await this.idle(Math.min(until - Date.now() + 1000, 10 * 60 * 1000));
         continue;
       }
       const ceiling = this.budget.enforceDailyCeiling();
@@ -68,12 +80,15 @@ export class Dispatcher {
       const degraded = this.budget.isDegraded();
       const task = claimNext(this.db, { degraded });
       if (!task) {
-        await sleep(this.config.pollIntervalSec * 1000);
+        await this.idle(this.config.pollIntervalSec * 1000);
         continue;
       }
 
       const job = this.execute(task, degraded).finally(() => this.inFlight.delete(job));
       this.inFlight.add(job);
+    }
+    if (this.inFlight.size > 0) {
+      this.log(`draining ${this.inFlight.size} running task(s) — Ctrl-C again to force quit`);
     }
     await Promise.allSettled([...this.inFlight]);
     this.log("dispatcher stopped");
