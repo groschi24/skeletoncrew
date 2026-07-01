@@ -87,8 +87,11 @@ You are an Engineer… (system prompt)
 Defaults shipped: **director** (plans, never implements — optimizes for the fewest
 tasks that advance the goal), **engineer** (implements on a branch, runs tests),
 **reviewer** (merges only on green tests, bounces work back otherwise), **triage**
-(Haiku-tier filter that keeps noise away from expensive agents). Add your own —
-marketing, ops, anything — by dropping a file in `org/roles/`.
+(Haiku-tier filter that keeps noise away from expensive agents).
+
+Defaults load from the package at runtime — your project's `org/roles/` holds only
+*overrides* (matched by role name) and additions, so upgrading SkeletonCrew upgrades
+the default roles everywhere. `skeletoncrew roles` shows what's active and from where.
 
 ## Roadmap
 

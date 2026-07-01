@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
-import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { BudgetManager } from "./budget";
 import { DEFAULTS, loadConfig } from "./config";
 import { openDb } from "./db";
 import { Dispatcher } from "./dispatcher";
 import { fetchUsage, formatUsage } from "./limits";
 import { addTask, getTask, listTasks } from "./queue";
+import { loadRoles } from "./roles";
 
 const root = process.cwd();
 const [command, ...args] = process.argv.slice(2);
@@ -34,18 +35,24 @@ switch (command) {
     }
     const rolesDir = join(root, "org", "roles");
     mkdirSync(rolesDir, { recursive: true });
-    if (readdirSync(rolesDir).length === 0) {
-      const defaults = join(dirname(import.meta.dir), "org", "roles");
-      for (const file of readdirSync(defaults)) {
-        copyFileSync(join(defaults, file), join(rolesDir, file));
-      }
-      console.log("seeded default roles: director, engineer, reviewer, triage");
+    const rolesReadme = join(rolesDir, "README.md");
+    if (!existsSync(rolesReadme)) {
+      writeFileSync(
+        rolesReadme,
+        `# Role overrides
+
+Default roles (director, engineer, reviewer, triage) ship with SkeletonCrew and load
+automatically — run \`skeletoncrew roles\` to see them. Drop a \`<name>.md\` file here
+to override a default (matched by role name) or to add a new role.
+`,
+      );
     }
     mkdirSync(join(root, "memory", "entries"), { recursive: true });
     mkdirSync(loadConfig(root).workspace, { recursive: true });
     openDb(loadConfig(root).dbPath);
-    console.log("initialized: skeletoncrew.json, org/roles/, memory/, workspace/, database");
-    console.log("next: add role files to org/roles/, then `skeletoncrew goal \"…\"` and `skeletoncrew daemon`");
+    console.log("initialized: skeletoncrew.json, org/roles/ (overrides), memory/, workspace/, database");
+    console.log("default roles load from the package — see `skeletoncrew roles`");
+    console.log("next: `skeletoncrew goal \"…\"` and `skeletoncrew daemon`");
     break;
   }
 
@@ -137,6 +144,16 @@ switch (command) {
     break;
   }
 
+  case "roles": {
+    const config = loadConfig(root);
+    for (const role of loadRoles(root, config).values()) {
+      console.log(
+        `${role.name.padEnd(12)} ${role.model.padEnd(28)} maxTurns=${String(role.maxTurns).padEnd(4)} ${role.permissionMode.padEnd(13)} [${role.source}]`,
+      );
+    }
+    break;
+  }
+
   case "resume": {
     const config = loadConfig(root);
     const db = openDb(config.dbPath);
@@ -173,6 +190,7 @@ usage:
   skeletoncrew add <role> "<title>"     queue a task directly (--spec, --priority, --cwd)
   skeletoncrew daemon                   run the 24/7 dispatcher loop
   skeletoncrew status                   queue, budget, pause state
+  skeletoncrew roles                    active roles and whether default or project override
   skeletoncrew log <id>                 task detail + session transcript pointer
   skeletoncrew resume                   clear a budget pause manually`);
 }

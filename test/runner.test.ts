@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DEFAULTS } from "../src/config";
 import type { Task } from "../src/queue";
-import { parseRole } from "../src/roles";
+import { loadRoles, packageRolesDir, parseRole } from "../src/roles";
 import { buildPrompt, parseAgentResult } from "../src/runner";
 
 describe("parseAgentResult", () => {
@@ -64,6 +67,34 @@ describe("roles", () => {
     const role = parseRole("just a prompt, no frontmatter", "triage", DEFAULTS);
     expect(role.model).toBe(DEFAULTS.models.triage);
     expect(role.systemPrompt).toContain("just a prompt");
+  });
+
+  test("loadRoles ships defaults and lets the project override by name", () => {
+    const root = mkdtempSync(join(tmpdir(), "skeletoncrew-test-"));
+    mkdirSync(join(root, "org", "roles"), { recursive: true });
+    writeFileSync(
+      join(root, "org", "roles", "engineer.md"),
+      "---\nname: engineer\nmaxTurns: 5\n---\nCustom engineer.",
+    );
+    writeFileSync(
+      join(root, "org", "roles", "marketer.md"),
+      "---\nname: marketer\n---\nYou market things.",
+    );
+    writeFileSync(join(root, "org", "roles", "README.md"), "# not a role");
+    const roles = loadRoles(root, DEFAULTS);
+    expect(roles.has("README")).toBe(false);
+    expect(roles.get("director")?.source).toBe("default"); // shipped, not copied
+    expect(roles.get("engineer")?.source).toBe("project"); // overridden
+    expect(roles.get("engineer")?.maxTurns).toBe(5);
+    expect(roles.get("marketer")?.source).toBe("project"); // added
+    expect(roles.get("engineer")?.systemPrompt).toBe("Custom engineer.");
+  });
+
+  test("loadRoles does not double-load when project root IS the package", () => {
+    const pkgRoot = join(packageRolesDir(), "..", "..");
+    const roles = loadRoles(pkgRoot, DEFAULTS);
+    expect(roles.get("engineer")?.source).toBe("default");
+    expect(roles.size).toBeGreaterThanOrEqual(4);
   });
 });
 

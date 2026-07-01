@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { Config } from "./config";
 
 export interface Role {
@@ -9,6 +9,8 @@ export interface Role {
   permissionMode: "default" | "acceptEdits" | "bypassPermissions" | "plan";
   allowedTools?: string[];
   systemPrompt: string;
+  /** Where this role definition came from: shipped default or project override. */
+  source: "default" | "project";
 }
 
 const ROLE_DEFAULTS = {
@@ -31,6 +33,7 @@ export function parseRole(source: string, fallbackName: string, config: Config):
   const name = front.name ?? fallbackName;
   return {
     name,
+    source: "default",
     model: front.model ?? config.models[name] ?? config.defaultModel,
     maxTurns: front.maxTurns ? Number(front.maxTurns) : ROLE_DEFAULTS.maxTurns,
     permissionMode: (front.permissionMode as Role["permissionMode"]) ?? ROLE_DEFAULTS.permissionMode,
@@ -45,15 +48,41 @@ export function parseRole(source: string, fallbackName: string, config: Config):
   };
 }
 
-export function loadRoles(root: string, config: Config): Map<string, Role> {
-  const dir = join(root, "org", "roles");
-  const roles = new Map<string, Role>();
-  if (!existsSync(dir)) return roles;
+/** The role definitions shipped with the SkeletonCrew package itself. */
+export function packageRolesDir(): string {
+  return join(dirname(import.meta.dir), "org", "roles");
+}
+
+function loadDir(
+  dir: string,
+  source: Role["source"],
+  config: Config,
+  into: Map<string, Role>,
+): void {
+  if (!existsSync(dir)) return;
   for (const file of readdirSync(dir)) {
-    if (!file.endsWith(".md")) continue;
-    const source = readFileSync(join(dir, file), "utf-8");
-    const role = parseRole(source, file.replace(/\.md$/, ""), config);
-    roles.set(role.name, role);
+    if (!file.endsWith(".md") || file.toLowerCase() === "readme.md") continue;
+    const text = readFileSync(join(dir, file), "utf-8");
+    const role = parseRole(text, file.replace(/\.md$/, ""), config);
+    into.set(role.name, { ...role, source });
+  }
+}
+
+/**
+ * Shipped defaults first, then the project's org/roles/ as overrides (matched by
+ * role name). Projects never hold copies of the defaults, so upgrading the
+ * package upgrades every install's roles automatically.
+ */
+export function loadRoles(
+  root: string,
+  config: Config,
+  defaultsDir: string = packageRolesDir(),
+): Map<string, Role> {
+  const roles = new Map<string, Role>();
+  loadDir(defaultsDir, "default", config, roles);
+  const projectDir = join(root, "org", "roles");
+  if (resolve(projectDir) !== resolve(defaultsDir)) {
+    loadDir(projectDir, "project", config, roles);
   }
   return roles;
 }
