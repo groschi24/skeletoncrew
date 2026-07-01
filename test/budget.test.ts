@@ -55,6 +55,61 @@ describe("BudgetManager", () => {
     expect(until - Date.now()).toBeLessThanOrEqual(DEFAULTS.windowHours * 3600_000 + 3 * 60_000);
     expect(budget.isPaused()).toBe(true);
   });
+
+  test("consecutive limit strikes escalate the pause; success resets", () => {
+    const budget = new BudgetManager(db, { ...DEFAULTS });
+    const first = budget.pauseForLimit("usage limit reached");
+    expect(budget.limitStrikes()).toBe(1);
+    const second = budget.pauseForLimit("usage limit reached");
+    expect(budget.limitStrikes()).toBe(2);
+    expect(second - first).toBeGreaterThanOrEqual(30 * 60_000); // +30min escalation
+    const third = budget.pauseForLimit("usage limit reached");
+    expect(third - first).toBeGreaterThanOrEqual(120 * 60_000); // +2h escalation
+    budget.noteSuccess();
+    expect(budget.limitStrikes()).toBe(0);
+  });
+
+  test("weekly limit without timestamp pauses ~24h instead of next window", () => {
+    const budget = new BudgetManager(db, { ...DEFAULTS });
+    const until = budget.pauseForLimit("You have reached your weekly limit");
+    expect(until - Date.now()).toBeGreaterThan(23 * 3600_000);
+    expect(until - Date.now()).toBeLessThanOrEqual(25 * 3600_000);
+  });
+
+  test("soft window cap self-pauses before the hard limit", () => {
+    const budget = new BudgetManager(db, { ...DEFAULTS, softWindowTokens: 1000 });
+    budget.record({
+      taskId: null, role: "engineer", model: "m",
+      inputTokens: 900, outputTokens: 200, cacheReadTokens: 0, cacheCreationTokens: 0,
+      costUsd: 0.1,
+    });
+    const capped = budget.enforceSoftCaps();
+    expect(capped).not.toBeNull();
+    expect(capped!.reason).toContain("soft window cap");
+    expect(budget.isPaused()).toBe(true);
+  });
+
+  test("soft weekly cap pauses with hourly recheck", () => {
+    const budget = new BudgetManager(db, { ...DEFAULTS, softWeeklyTokens: 500 });
+    budget.record({
+      taskId: null, role: "engineer", model: "m",
+      inputTokens: 600, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+      costUsd: 0.1,
+    });
+    const capped = budget.enforceSoftCaps();
+    expect(capped!.reason).toContain("weekly");
+    expect(capped!.until - Date.now()).toBeLessThanOrEqual(60 * 60_000 + 1000);
+  });
+
+  test("no soft caps configured → never self-pauses", () => {
+    const budget = new BudgetManager(db, { ...DEFAULTS });
+    budget.record({
+      taskId: null, role: "engineer", model: "m",
+      inputTokens: 1e9, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+      costUsd: 0.1,
+    });
+    expect(budget.enforceSoftCaps()).toBeNull();
+  });
 });
 
 describe("limit parsing", () => {

@@ -72,6 +72,11 @@ export class Dispatcher {
         this.log(`daily budget ceiling hit — paused until ${new Date(ceiling).toISOString()}`);
         continue;
       }
+      const softCap = this.budget.enforceSoftCaps();
+      if (softCap) {
+        this.log(`${softCap.reason} — paused until ${new Date(softCap.until).toISOString()}`);
+        continue;
+      }
 
       if (this.inFlight.size >= this.config.concurrency) {
         await Promise.race(this.inFlight);
@@ -125,11 +130,13 @@ export class Dispatcher {
     if (outcome.limitHit || isLimitError(outcome.summary)) {
       const until = this.budget.pauseForLimit(outcome.summary);
       releaseTask(this.db, task.id, until);
+      const strikes = this.budget.limitStrikes();
       this.log(
-        `task ${task.id} hit a usage limit — queue paused until ${new Date(until).toISOString()}`,
+        `task ${task.id} hit a usage limit (strike ${strikes}) — queue paused until ${new Date(until).toISOString()}`,
       );
       return;
     }
+    this.budget.noteSuccess();
 
     if (outcome.ok) {
       completeTask(this.db, task.id, outcome.summary, outcome.sessionId);

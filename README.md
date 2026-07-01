@@ -27,6 +27,11 @@ autoagents status        # queue, spend, pause state
   mode parses the reset time out of limit errors and sleeps until the window turns
   over; API mode enforces a daily dollar ceiling. Below 20% budget, only priority-0
   tasks dispatch. Cheap work runs on cheap models (triage is Haiku by default).
+- **Never hammers the provider.** Consecutive limit hits escalate the pause
+  (+30min/+2h/+8h strikes, reset by a successful session), weekly limits get a
+  conservative 24h pause, and optional soft caps (`softWindowTokens`,
+  `softWeeklyTokens`) make the daemon throttle itself *before* ever touching your
+  plan's hard limits — leaving headroom for your interactive use.
 - **Flat-cost memory.** Agents get a capped index (`memory/INDEX.md`, ~2k tokens) —
   never a history dump — and read individual entries on demand. Memory grows forever;
   per-session cost doesn't.

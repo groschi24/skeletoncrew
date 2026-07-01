@@ -94,6 +94,14 @@ switch (command) {
     }
     console.log(`queue: ${[...counts.entries()].map(([s, n]) => `${n} ${s}`).join(", ") || "empty"}`);
     console.log(`today: ${spent.tokens.toLocaleString()} tokens, $${spent.costUsd.toFixed(2)} (mode: ${config.billingMode})`);
+    const win = budget.spentThisWindow();
+    const week = budget.spentThisWeek();
+    const winCap = config.softWindowTokens > 0 ? `/${config.softWindowTokens.toLocaleString()}` : "";
+    const weekCap = config.softWeeklyTokens > 0 ? `/${config.softWeeklyTokens.toLocaleString()}` : "";
+    console.log(
+      `this ${config.windowHours}h window: ${win.tokens.toLocaleString()}${winCap} tokens · rolling 7d: ${week.tokens.toLocaleString()}${weekCap} tokens` +
+        (budget.limitStrikes() > 0 ? ` · limit strikes: ${budget.limitStrikes()}` : ""),
+    );
     if (budget.isPaused()) {
       console.log(`PAUSED until ${new Date(budget.pausedUntil()).toISOString()}`);
     } else if (budget.isDegraded()) {

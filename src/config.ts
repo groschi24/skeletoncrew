@@ -18,6 +18,10 @@ export interface Config {
   degradedThreshold: number;
   /** Subscription limit windows reset every N hours. */
   windowHours: number;
+  /** Soft token ceiling per limit window; 0 disables. Daemon self-pauses before hitting the hard limit. */
+  softWindowTokens: number;
+  /** Soft token ceiling over a rolling 7 days; 0 disables. */
+  softWeeklyTokens: number;
   /** Default model per role name; roles can override in their frontmatter. */
   models: Record<string, string>;
   defaultModel: string;
@@ -32,6 +36,8 @@ export const DEFAULTS: Config = {
   dailyBudgetUsd: 20,
   degradedThreshold: 0.2,
   windowHours: 5,
+  softWindowTokens: 0,
+  softWeeklyTokens: 0,
   models: {
     director: "claude-opus-4-8",
     engineer: "claude-sonnet-5",
