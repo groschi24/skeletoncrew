@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { briefingSince, generateBriefing, markBriefed } from "./briefing";
 import { BudgetManager } from "./budget";
 import { DEFAULTS, loadConfig } from "./config";
 import { openDb } from "./db";
@@ -144,6 +145,22 @@ to override a default (matched by role name) or to add a new role.
     break;
   }
 
+  case "briefing": {
+    const config = loadConfig(root);
+    const db = openDb(config.dbPath);
+    const budget = new BudgetManager(db, config);
+    const since = flag("since") ? Date.now() - Number(flag("since")) * 3600_000 : briefingSince(db);
+    const usage = config.billingMode === "subscription" ? await fetchUsage() : null;
+    const report = generateBriefing(db, budget, since, Date.now(), usage);
+    console.log(report);
+    mkdirSync(join(root, "briefings"), { recursive: true });
+    const file = join(root, "briefings", `${new Date().toISOString().slice(0, 10)}.md`);
+    writeFileSync(file, report);
+    markBriefed(db, Date.now());
+    console.log(`saved to ${file}`);
+    break;
+  }
+
   case "roles": {
     const config = loadConfig(root);
     for (const role of loadRoles(root, config).values()) {
@@ -191,6 +208,7 @@ usage:
   skeletoncrew daemon                   run the 24/7 dispatcher loop
   skeletoncrew status                   queue, budget, pause state
   skeletoncrew roles                    active roles and whether default or project override
+  skeletoncrew briefing [--since h]     what the crew did since the last briefing (saved to briefings/)
   skeletoncrew log <id>                 task detail + session transcript pointer
   skeletoncrew resume                   clear a budget pause manually`);
 }

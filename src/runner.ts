@@ -51,14 +51,23 @@ followUpTasks) whenever one task needs another's output — e.g. a reviewer must
 the engineer task it reviews. followUpTasks and memoryNotes may be empty arrays. Only record memoryNotes for durable,
 non-obvious facts a future agent would need — never restate what the code already shows.`;
 
-export function buildPrompt(task: Task, role: Role, memoryIndex: string): string {
+export function buildPrompt(
+  task: Task,
+  role: Role,
+  memoryIndex: string,
+  branch?: string,
+): string {
   return `You are the ${role.name} agent in the SkeletonCrew organization.
 
 ## Your task (id ${task.id}, attempt ${task.attempts}/${task.max_attempts})
 **${task.title}**
 
 ${task.spec || "(no further spec — use your judgment)"}
-${task.error ? `\n## Previous attempt failed with\n${task.error}\n` : ""}
+${task.error ? `\n## Previous attempt failed with\n${task.error}\n` : ""}${
+    branch
+      ? `\n## Workspace\nYou are in an isolated git worktree on branch \`${branch}\` (already checked out).\nCommit your work to this branch. Do NOT switch branches, merge, or push.\n`
+      : ""
+  }
 ## Memory index
 The organization's memory index is below. If an entry looks relevant, read it from memory/entries/<slug>.md before starting.
 
@@ -97,8 +106,9 @@ export async function runTask(
   role: Role,
   config: Config,
   memory: MemoryStore,
+  workspace?: { cwd: string; branch?: string },
 ): Promise<AgentOutcome> {
-  const prompt = buildPrompt(task, role, memory.readIndex());
+  const prompt = buildPrompt(task, role, memory.readIndex(), workspace?.branch);
   const outcome: AgentOutcome = {
     ok: false,
     limitHit: false,
@@ -115,7 +125,7 @@ export async function runTask(
       prompt,
       options: {
         model: role.model,
-        cwd: task.cwd ?? config.workspace,
+        cwd: workspace?.cwd ?? task.cwd ?? config.workspace,
         maxTurns: role.maxTurns,
         permissionMode: role.permissionMode,
         ...(role.allowedTools ? { allowedTools: role.allowedTools } : {}),

@@ -65,6 +65,8 @@ or `"api"` (enforce `dailyBudgetUsd`).
 | `daemon` | Run the dispatcher loop (24/7; SIGINT drains gracefully) |
 | `status` | Queue counts, today's spend, pause/degraded state, recent tasks |
 | `log <id>` | Task detail + `claude --resume` pointer to the full transcript |
+| `roles` | Active roles and whether each is a shipped default or project override |
+| `briefing [--since h]` | Morning report: done/failed/open since last briefing, spend, limits (saved to `briefings/`) |
 | `resume` | Manually clear a budget pause |
 
 Run 24/7 under `launchd`/`systemd` with restart-on-exit; the queue recovers orphaned
@@ -99,8 +101,11 @@ See [docs/PLAN.md](docs/PLAN.md) for the full architecture and phase plan, and
 [docs/RESEARCH.md](docs/RESEARCH.md) for the landscape research behind the design.
 
 - [x] Phase 0 — kernel: queue, dispatcher, ledger, structured results, CLI
-- [ ] Phase 1 — git-worktree isolation per engineer, memory compaction agent
-- [ ] Phase 2 — launchd/systemd templates, morning briefing, window-aware scheduling
+- [x] Phase 1a — git-worktree isolation (roles with `isolation: worktree` get a fresh
+      checkout on a `task/<id>-<slug>` branch; commits survive, trees never collide)
+- [x] Phase 2a — morning briefing (`skeletoncrew briefing`, zero-token, from the ledger)
+- [ ] Phase 1b — memory compaction agent
+- [ ] Phase 2b — launchd/systemd templates, window-aware scheduling
       (spend big-model budget right after window reset, cheap tasks near the end)
 - [ ] Phase 3 — self-optimization via empirical selection over org-config variants
       (Darwin-Gödel-style archive, not in-place self-patching)

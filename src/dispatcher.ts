@@ -16,6 +16,7 @@ import {
 } from "./queue";
 import { loadRoles, type Role } from "./roles";
 import { runTask } from "./runner";
+import { prepareWorkspace } from "./workspace";
 
 export class Dispatcher {
   private budget: BudgetManager;
@@ -143,11 +144,18 @@ export class Dispatcher {
       this.log(`task ${task.id} failed: unknown role '${task.role}'`);
       return;
     }
+    const workspace = prepareWorkspace(task, role, this.config);
+    if (workspace.note) this.log(`task ${task.id}: ${workspace.note}`);
     this.log(
-      `task ${task.id} [${task.role}] "${task.title}" started${degraded ? " (degraded mode)" : ""}`,
+      `task ${task.id} [${task.role}] "${task.title}" started${workspace.branch ? ` on ${workspace.branch}` : ""}${degraded ? " (degraded mode)" : ""}`,
     );
 
-    const outcome = await runTask(task, role, this.config, this.memory);
+    let outcome: Awaited<ReturnType<typeof runTask>>;
+    try {
+      outcome = await runTask(task, role, this.config, this.memory, workspace);
+    } finally {
+      workspace.cleanup();
+    }
 
     for (const u of outcome.usage) {
       this.budget.record({
@@ -175,6 +183,7 @@ export class Dispatcher {
     this.budget.noteSuccess();
 
     if (outcome.ok) {
+      if (workspace.branch) outcome.summary += ` [branch: ${workspace.branch}]`;
       completeTask(this.db, task.id, outcome.summary, outcome.sessionId);
       for (const note of outcome.memoryNotes) {
         this.memory.addEntry(note.slug, note.description, note.body);

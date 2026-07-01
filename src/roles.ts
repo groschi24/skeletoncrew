@@ -9,6 +9,8 @@ export interface Role {
   permissionMode: "default" | "acceptEdits" | "bypassPermissions" | "plan";
   allowedTools?: string[];
   systemPrompt: string;
+  /** "worktree" gives each task an isolated git worktree on its own branch. */
+  isolation?: "worktree";
   /** Where this role definition came from: shipped default or project override. */
   source: "default" | "project";
 }
@@ -37,6 +39,7 @@ export function parseRole(source: string, fallbackName: string, config: Config):
     model: front.model ?? config.models[name] ?? config.defaultModel,
     maxTurns: front.maxTurns ? Number(front.maxTurns) : ROLE_DEFAULTS.maxTurns,
     permissionMode: (front.permissionMode as Role["permissionMode"]) ?? ROLE_DEFAULTS.permissionMode,
+    isolation: front.isolation === "worktree" ? "worktree" : undefined,
     allowedTools: front.allowedTools
       ? front.allowedTools
           .replace(/^\[|\]$/g, "")
