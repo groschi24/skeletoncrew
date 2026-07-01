@@ -30,6 +30,17 @@ final answer:
     expect(parsed.memoryNotes).toEqual([]);
   });
 
+  test("passes dependsOnIndex through on follow-up tasks", () => {
+    const text = `\`\`\`json
+{"status": "done", "summary": "planned", "followUpTasks": [
+  {"role": "engineer", "title": "build", "spec": "…"},
+  {"role": "reviewer", "title": "verify", "spec": "…", "dependsOnIndex": [0]}
+]}
+\`\`\``;
+    const parsed = parseAgentResult(text)!;
+    expect(parsed.followUpTasks[1].dependsOnIndex).toEqual([0]);
+  });
+
   test("returns null for garbage", () => {
     expect(parseAgentResult("no block here")).toBeNull();
     expect(parseAgentResult("```json\n{not json}\n```")).toBeNull();

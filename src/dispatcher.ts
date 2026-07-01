@@ -135,21 +135,33 @@ export class Dispatcher {
       for (const note of outcome.memoryNotes) {
         this.memory.addEntry(note.slug, note.description, note.body);
       }
-      for (const follow of outcome.followUpTasks) {
+      const createdIds: Array<number | null> = [];
+      outcome.followUpTasks.forEach((follow, index) => {
         if (!this.roles.has(follow.role)) {
           this.log(`task ${task.id} proposed follow-up with unknown role '${follow.role}' — skipped`);
-          continue;
+          createdIds.push(null);
+          return;
         }
+        // Map dependsOnIndex (positions in this batch) to the real ids created above.
+        const dependsOn = (follow.dependsOnIndex ?? [])
+          .filter((i) => Number.isInteger(i) && i >= 0 && i < index)
+          .map((i) => createdIds[i])
+          .filter((id): id is number => id !== null);
         const id = addTask(this.db, {
           role: follow.role,
           title: follow.title,
           spec: follow.spec,
           priority: follow.priority,
           cwd: task.cwd ?? undefined,
+          dependsOn,
           createdBy: `task:${task.id}`,
         });
-        this.log(`task ${task.id} → spawned follow-up ${id} [${follow.role}] "${follow.title}"`);
-      }
+        createdIds.push(id);
+        this.log(
+          `task ${task.id} → spawned follow-up ${id} [${follow.role}] "${follow.title}"` +
+            (dependsOn.length ? ` (after ${dependsOn.map((d) => `#${d}`).join(", ")})` : ""),
+        );
+      });
       this.log(
         `task ${task.id} done (${outcome.totalTokens} tokens, $${outcome.totalCostUsd.toFixed(4)}): ${outcome.summary.slice(0, 120)}`,
       );

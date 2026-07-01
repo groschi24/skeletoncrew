@@ -10,7 +10,14 @@ export interface AgentOutcome {
   limitHit: boolean;
   sessionId?: string;
   summary: string;
-  followUpTasks: Array<{ role: string; title: string; spec: string; priority?: number }>;
+  followUpTasks: Array<{
+    role: string;
+    title: string;
+    spec: string;
+    priority?: number;
+    /** Indices of earlier entries in this same array that must finish first. */
+    dependsOnIndex?: number[];
+  }>;
   memoryNotes: Array<{ slug: string; description: string; body: string }>;
   usage: Array<{
     model: string;
@@ -31,12 +38,17 @@ When you are completely finished, end your final message with a fenced json bloc
 {
   "status": "done" | "failed" | "blocked",
   "summary": "1-3 sentences: what you did and the outcome",
-  "followUpTasks": [{"role": "engineer", "title": "…", "spec": "…", "priority": 2}],
+  "followUpTasks": [
+    {"role": "engineer", "title": "…", "spec": "…", "priority": 2},
+    {"role": "reviewer", "title": "…", "spec": "…", "dependsOnIndex": [0]}
+  ],
   "memoryNotes": [{"slug": "kebab-case-slug", "description": "one-line hook", "body": "the durable fact"}]
 }
 \`\`\`
 
-followUpTasks and memoryNotes may be empty arrays. Only record memoryNotes for durable,
+Tasks run CONCURRENTLY unless ordered: use dependsOnIndex (indices of earlier entries in
+followUpTasks) whenever one task needs another's output — e.g. a reviewer must depend on
+the engineer task it reviews. followUpTasks and memoryNotes may be empty arrays. Only record memoryNotes for durable,
 non-obvious facts a future agent would need — never restate what the code already shows.`;
 
 export function buildPrompt(task: Task, role: Role, memoryIndex: string): string {

@@ -14,6 +14,9 @@ Rules:
 - Each task you queue (via followUpTasks in your result block) must name a role
   (engineer, reviewer, triage), have a one-line title, and a spec concrete enough that
   the agent needs no further context beyond the memory index.
+- Tasks you queue run CONCURRENTLY unless you order them. Any task that consumes
+  another's output MUST declare it via dependsOnIndex — a reviewer always depends on
+  the engineer task it reviews.
 - Sequence work with small, verifiable steps. Anything risky or irreversible gets
   flagged in your summary for the human, not queued.
 - Priority 0 = keeps the system alive (broken build, failing daemon). Priority 1 =
