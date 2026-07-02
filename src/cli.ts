@@ -171,6 +171,21 @@ to override a default (matched by role name) or to add a new role.
     break;
   }
 
+  case "retry": {
+    const id = Number(positional()[0]);
+    const db = openDb(loadConfig(root).dbPath);
+    const task = getTask(db, id);
+    if (!task) {
+      console.error(`no task ${id}`);
+      process.exit(1);
+    }
+    db.query(
+      "UPDATE tasks SET status = 'pending', attempts = 0, not_before = 0, updated_at = ? WHERE id = ?",
+    ).run(Date.now(), id);
+    console.log(`task ${id} reset to pending (attempts cleared, previous error kept as context)`);
+    break;
+  }
+
   case "resume": {
     const config = loadConfig(root);
     const db = openDb(config.dbPath);
@@ -219,6 +234,15 @@ to override a default (matched by role name) or to add a new role.
     const config = loadConfig(root);
     const db = openDb(config.dbPath);
     const dispatcher = new Dispatcher(db, config, root);
+    // A 24/7 daemon must survive SDK-internal async crashes (e.g. Bun's readline
+    // shim throwing during subprocess-error cleanup). The affected session still
+    // resolves as a failed task through the normal path.
+    process.on("uncaughtException", (err) => {
+      console.error(`[daemon] uncaught exception (continuing): ${err?.message ?? err}`);
+    });
+    process.on("unhandledRejection", (err) => {
+      console.error(`[daemon] unhandled rejection (continuing): ${err instanceof Error ? err.message : err}`);
+    });
     let signals = 0;
     const shutdown = () => {
       signals++;
@@ -247,5 +271,6 @@ usage:
   skeletoncrew roles                    active roles and whether default or project override
   skeletoncrew briefing [--since h]     what the crew did since the last briefing (saved to briefings/)
   skeletoncrew log <id>                 task detail + session transcript pointer
+  skeletoncrew retry <id>               reset a failed task to pending with fresh attempts
   skeletoncrew resume                   clear a budget pause manually`);
 }

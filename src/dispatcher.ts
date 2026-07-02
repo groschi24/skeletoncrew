@@ -1,4 +1,7 @@
 import type { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { expandPath } from "./config";
 import { BudgetManager, isLimitError } from "./budget";
 import type { Config } from "./config";
 import { fetchUsage, formatUsage, type UsageSnapshot } from "./limits";
@@ -60,6 +63,12 @@ export class Dispatcher {
   }
 
   async run(): Promise<void> {
+    if (!existsSync(this.config.workspace)) {
+      this.log(
+        `FATAL: workspace does not exist: ${this.config.workspace} — fix skeletoncrew.json (use absolute paths, ~ is expanded)`,
+      );
+      return;
+    }
     const orphans = recoverOrphans(this.db);
     if (orphans > 0) this.log(`recovered ${orphans} orphaned running task(s) → pending`);
     this.log(
@@ -214,6 +223,18 @@ export class Dispatcher {
     if (!role) {
       failTask(this.db, { ...task, attempts: task.max_attempts }, `unknown role: ${task.role}`);
       this.log(`task ${task.id} failed: unknown role '${task.role}'`);
+      return;
+    }
+    if (task.cwd) task.cwd = expandPath(task.cwd);
+    const taskDir = resolve(task.cwd ?? this.config.workspace);
+    if (!existsSync(taskDir)) {
+      // A bad cwd crashes the SDK subprocess spawn — fail cleanly instead.
+      failTask(
+        this.db,
+        { ...task, attempts: task.max_attempts },
+        `working directory does not exist: ${taskDir}`,
+      );
+      this.log(`task ${task.id} failed: working directory does not exist: ${taskDir}`);
       return;
     }
     const workspace = prepareWorkspace(task, role, this.config, this.dependencyBranch(task));

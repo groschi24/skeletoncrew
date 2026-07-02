@@ -49,7 +49,11 @@ When you are completely finished, end your final message with a fenced json bloc
 Tasks run CONCURRENTLY unless ordered: use dependsOnIndex (indices of earlier entries in
 followUpTasks) whenever one task needs another's output — e.g. a reviewer must depend on
 the engineer task it reviews. followUpTasks and memoryNotes may be empty arrays. Only record memoryNotes for durable,
-non-obvious facts a future agent would need — never restate what the code already shows.`;
+non-obvious facts a future agent would need — never restate what the code already shows.
+
+You have a hard turn limit. If you sense you are running low, STOP working and emit the
+result block immediately with what you completed and what remains — a partial result with
+status "blocked" is recoverable; hitting the turn limit loses everything.`;
 
 export function buildPrompt(
   task: Task,
@@ -75,6 +79,16 @@ ${memoryIndex}
 
 ## Result contract
 ${RESULT_CONTRACT}`;
+}
+
+/**
+ * Retrying an out-of-turns failure with the same budget usually just fails
+ * again — grow the ceiling 1.5× per such failure, capped at 3× the role's base.
+ */
+export function effectiveMaxTurns(role: Role, task: Task): number {
+  if (!task.error || !/maximum number of turns/i.test(task.error)) return role.maxTurns;
+  const factor = Math.min(3, 1.5 ** Math.max(1, task.attempts - 1));
+  return Math.round(role.maxTurns * factor);
 }
 
 /** Pull the trailing \`\`\`json block out of an agent's final message. */
@@ -136,7 +150,7 @@ export async function runTask(
           autoAllowBashIfSandboxed: true,
           failIfUnavailable: false,
         },
-        maxTurns: role.maxTurns,
+        maxTurns: effectiveMaxTurns(role, task),
         permissionMode: role.permissionMode,
         ...(role.allowedTools ? { allowedTools: role.allowedTools } : {}),
         systemPrompt: role.systemPrompt,

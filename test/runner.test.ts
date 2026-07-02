@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULTS } from "../src/config";
+import { DEFAULTS, expandPath } from "../src/config";
 import type { Task } from "../src/queue";
 import { loadRoles, modelTier, packageRolesDir, parseRole } from "../src/roles";
-import { buildPrompt, parseAgentResult } from "../src/runner";
+import { buildPrompt, effectiveMaxTurns, parseAgentResult } from "../src/runner";
 
 describe("parseAgentResult", () => {
   test("extracts the last json block", () => {
@@ -108,6 +108,30 @@ describe("roles", () => {
     const roles = loadRoles(pkgRoot, DEFAULTS);
     expect(roles.get("engineer")?.source).toBe("default");
     expect(roles.size).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("effectiveMaxTurns", () => {
+  const role = parseRole("---\nname: reviewer\nmaxTurns: 60\n---\np", "reviewer", DEFAULTS);
+  test("base budget without a max-turns failure", () => {
+    expect(effectiveMaxTurns(role, { error: null, attempts: 1 } as Task)).toBe(60);
+    expect(effectiveMaxTurns(role, { error: "tests are red", attempts: 2 } as Task)).toBe(60);
+  });
+  test("grows 1.5x per out-of-turns failure, capped at 3x", () => {
+    const err = "runner exception: Reached maximum number of turns (60)";
+    expect(effectiveMaxTurns(role, { error: err, attempts: 2 } as Task)).toBe(90);
+    expect(effectiveMaxTurns(role, { error: err, attempts: 3 } as Task)).toBe(135);
+    expect(effectiveMaxTurns(role, { error: err, attempts: 10 } as Task)).toBe(180);
+  });
+});
+
+describe("expandPath", () => {
+  test("expands leading tilde, leaves other paths alone", () => {
+    expect(expandPath("~/Projects/x").startsWith("/")).toBe(true);
+    expect(expandPath("~/Projects/x").includes("~")).toBe(false);
+    expect(expandPath("/abs/path")).toBe("/abs/path");
+    expect(expandPath("./rel")).toBe("./rel");
+    expect(expandPath("not~expanded")).toBe("not~expanded");
   });
 });
 

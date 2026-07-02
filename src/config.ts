@@ -1,5 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
+
+/** Expand a leading ~ — subprocess spawns never do it, and a literal "~/…" cwd crashes the SDK. */
+export function expandPath(p: string): string {
+  return p === "~" || p.startsWith("~/") ? join(homedir(), p.slice(1)) : p;
+}
 
 export interface Config {
   /** Directory agents work in. For Night Shift mode, point this at your repo. */
@@ -59,7 +65,9 @@ export const DEFAULTS: Config = {
 
 export function loadConfig(root: string = process.cwd()): Config {
   const path = join(root, "skeletoncrew.json");
-  if (!existsSync(path)) return { ...DEFAULTS };
-  const user = JSON.parse(readFileSync(path, "utf-8"));
-  return { ...DEFAULTS, ...user, models: { ...DEFAULTS.models, ...user.models } };
+  const user = existsSync(path) ? JSON.parse(readFileSync(path, "utf-8")) : {};
+  const config = { ...DEFAULTS, ...user, models: { ...DEFAULTS.models, ...user.models } };
+  config.workspace = expandPath(config.workspace);
+  config.dbPath = expandPath(config.dbPath);
+  return config;
 }
